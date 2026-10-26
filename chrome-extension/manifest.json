@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Claim & Bias Checker",
+  "version": "0.1",
+  "description": "Extract claims, fact-check them, and detect bias in news articles.",
+  "permissions": ["activeTab", "scripting", "tabs"],
+  "host_permissions": [
+    "http://localhost:8000/*",
+    "http://127.0.0.1:8000/*",
+    "<all_urls>"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Claim & Bias Checker"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -1,2 +1,5 @@
 LFM.gguf
 *.gguf
+.venv/
+__pycache__/
+*.pyc

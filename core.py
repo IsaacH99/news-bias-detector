@@ -129,10 +129,21 @@ def fact_check_search(query, api_key=None):
     return out
 
 
+from transformers import pipeline
+
+# Load the model once (singleton style)
+_bias_clf = None
+def get_bias_clf():
+    global _bias_clf
+    if _bias_clf is None:
+        _bias_clf = pipeline("text-classification", model="himel7/bias-detector", tokenizer="roberta-base")
+    return _bias_clf
+
 def detect_bias(text, title):
-    router = get_router()
-    state = {"title": title, "text": text}
-    return router.predict(state, BIAS_QUESTIONS)
+    clf = get_bias_clf()
+    # Truncate text to fit model's max length (usually 512 tokens)
+    result = clf(text[:1500])[0]
+    return {"label": result["label"], "score": result["score"]}
 
 
 # ---------- main pipeline ----------

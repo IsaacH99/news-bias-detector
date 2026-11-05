@@ -1,29 +1,29 @@
 const $ = (id) => document.getElementById(id);
 
-function badgeClass(verdict) {
+function getBadgeClass(verdict) {
   const v = (verdict || "").toLowerCase();
-  // Red for false stuff
-  if (/false|misleading|incorrect|pants|fake|contradicted/.test(v)) return "red";
-  // Green for true stuff
+  if (/false|misleading|incorrect|fake|contradicted/.test(v)) return "red";
   if (/true|correct|accurate|supported/.test(v)) return "green";
-  // Gray for unknown
   return "gray";
 }
 
 $("go").onclick = async () => {
   const status = $("status");
   const results = $("results");
+  const btn = $("go");
+  
   results.innerHTML = "";
-  status.textContent = "Analyzing… (10–40 s)";
+  status.textContent = "Analyzing... (This may take 10–30 seconds)";
+  btn.disabled = true;
+  btn.textContent = "Analyzing...";
 
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab || !tab.url || !/^https?:/.test(tab.url)) {
-      status.textContent = "Open a news article (http/https) first.";
+      status.textContent = "Please open a news article (http/https) first.";
       return;
     }
 
-    // Note: Using 127.0.0.1 to match your server.py
     const res = await fetch("http://127.0.0.1:8000/analyze", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -32,7 +32,6 @@ $("go").onclick = async () => {
 
     if (!res.ok) {
       status.textContent = "Backend error: " + res.status;
-      console.error(await res.text());
       return;
     }
 
@@ -44,36 +43,53 @@ $("go").onclick = async () => {
     }
 
     chrome.tabs.sendMessage(tab.id, { type: "ANNOTATE", payload: data });
-
     status.textContent = "";
 
-    const title = document.createElement("div");
-    title.innerHTML =
-      `<b>${data.meta?.title || "(no title)"}</b><br><small>${data.meta?.hostname || ""}</small>`;
-    results.appendChild(title);
+    // Article Header
+    const header = document.createElement("div");
+    header.className = "article-header";
+    header.innerHTML = `
+      <div class="article-title">${data.meta?.title || "(No title found)"}</div>
+      <div class="article-source">${data.meta?.hostname || ""}</div>
+    `;
+    results.appendChild(header);
 
+    // Claims
     (data.claims || []).forEach((c) => {
       const div = document.createElement("div");
       div.className = "card";
-      const badge = `<span class="badge ${badgeClass(c.verdict)}">${c.verdict}</span>`;
       
-      // Show the LLM's reason
-      const reason = c.reason ? `<br><small style="color:#444;"><i>${c.reason}</i></small>` : "";
+      const badge = `<span class="badge ${getBadgeClass(c.verdict)}">${c.verdict}</span>`;
+      const reason = c.reason ? `<div class="reason">"${c.reason}"</div>` : "";
       
-      div.innerHTML = `${c.claim}${badge}${reason}`;
+      div.innerHTML = `
+        <div class="claim-text">${c.claim}</div>
+        <div class="badge-row">${badge}</div>
+        ${reason}
+      `;
       results.appendChild(div);
     });
 
+    // Bias / Tone Section
     if (data.bias && !data.bias.stub) {
       const biased = data.bias.label === "LABEL_1";
+      const tone = biased ? "Emotional / Negative" : "Neutral / Objective";
+      const score = data.bias.score?.toFixed?.(2) ?? data.bias.score;
+      
       const b = document.createElement("div");
-      b.className = "bias";
-      b.innerHTML =
-        `<b>Sentiment/Bias:</b> ${biased ? "Negative" : "Neutral/Positive"} (score ${data.bias.score?.toFixed?.(2) ?? data.bias.score})`;
+      b.className = "bias-container";
+      b.innerHTML = `
+        <div class="bias-label">Article Tone</div>
+        <div class="bias-score">${tone} &middot; ${score}</div>
+      `;
       results.appendChild(b);
     }
+
   } catch (e) {
-    status.textContent = "Failed to fetch — is the backend running?";
+    status.textContent = "Failed to connect. Is the Python server running?";
     console.error(e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Analyze Page";
   }
 };
